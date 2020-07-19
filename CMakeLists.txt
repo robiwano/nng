@@ -41,6 +41,8 @@ include(FindUnixCommands)
 
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
 if (POLICY CMP0042)
     # Newer cmake on MacOS should use @rpath
     cmake_policy(SET CMP0042 NEW)
@@ -98,6 +100,7 @@ endif ()
 # must be enabled rather early as we use their values later.
 option(NNG_TESTS "Build and run tests" ${NNG_NATIVE_BUILD})
 option(NNG_TOOLS "Build extra tools" ${NNG_NATIVE_BUILD})
+option(NNG_DEMOS "Build demos" OFF)
 option(NNG_ENABLE_NNGCAT "Enable building nngcat utility." ${NNG_TOOLS})
 option(NNG_ENABLE_COVERAGE "Enable coverage reporting." OFF)
 
@@ -478,6 +481,10 @@ if (NNG_ENABLE_TLS)
 endif ()
 
 add_subdirectory(docs/man)
+
+if (NNG_DEMOS)
+    add_subdirectory(demo)
+endif()
 
 set(CPACK_PACKAGE_NAME ${PROJECT_NAME})
 set(CPACK_PACKAGE_VERSION ${NNG_PACKAGE_VERSION})
