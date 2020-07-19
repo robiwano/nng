@@ -1,5 +1,6 @@
 // Copyright 2018 Staysail Systems, Inc. <info@staysail.tech>
 // Copyright 2018 Capitar IT Group BV <info@capitoar.com>
+// Copyright 2020 Dirac Research AB <robert.bielik@dirac.com>
 //
 // This software is supplied under the terms of the MIT License, a
 // copy of which should be located in the distribution where this
@@ -8,24 +9,16 @@
 //
 
 // This program serves as an example for how to write a Websocket service,
-// using the request/reply pattern and contexts (nng_ctx(5)).  The server
-// allocates a number of contexts up front, which determines the amount of
-// parallelism possible.  The callbacks are handled asynchronously, so
-// this could be done by threads, or something similar.  For our uses we
-// make use of an event driven architecture that we already have available.
+// TODO: Document this example
 
-// Our demonstration application layer protocol is simple.  The client sends
-// a number of milliseconds to wait before responding.  The server just gives
-// back an empty reply after waiting that long.
-
-// To run this program, start the server as async_demo <url> -s
-// Then connect to it with the client as async_client <url> <msec>.
+// To run this program, start the server as ./ws_server <url>
+// Then connect to it with the client as ./ws_client <url> <message to send>
 //
 //  For example:
 //
 //  % ./server ws://127.0.0.1:5555/test &
-//  % ./client ws://127.0.0.1:5555/test 323
-//  Request took 324 milliseconds.
+//  % ./client ws://127.0.0.1:5555/test "Message"
+//  Client received: Message
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -34,13 +27,6 @@
 
 #include <nng/nng.h>
 #include <nng/supplemental/util/platform.h>
-
-// The server keeps a list of work items, sorted by expiration time,
-// so that we can use this to set the timeout to the correct value for
-// use in poll.
-struct work {
-	nng_stream *s;
-};
 
 void
 fatal(const char *func, int rv)
@@ -60,6 +46,7 @@ typedef struct {
 	nng_aio *   aio;
 	int         err;
 	char        buf[1024];
+	size_t      offset;
 } stream;
 
 static void
@@ -68,12 +55,13 @@ stream_handle_cb(void *arg)
 	stream *s   = (stream *) arg;
 	int     rv  = nng_aio_result(s->aio);
 	size_t  len = nng_aio_count(s->aio);
-	fprintf(stdout, "Res: %s, Len: %zu\n", nng_strerror(rv), len);
+	fprintf(stderr, "Res: %s, Len: %zu\n", nng_strerror(rv), len);
 	switch (rv) {
 	case 0: {
+
 	} break;
 	case NNG_ECLOSED: {
-		nng_aio_free(s->aio);
+		// nng_aio_free(s->aio);
 	} break;
 	default:
 		break;
@@ -92,7 +80,6 @@ stream_accept_cb(void *arg)
 		s->s      = nng_aio_get_output(l->aio, 0);
 		if ((s->err = nng_aio_alloc(&s->aio, stream_handle_cb, s)) ==
 		    0) {
-			nng_aio_set_timeout(s->aio, 5000);
 			nng_iov iov;
 			iov.iov_buf = s->buf;
 			iov.iov_len = sizeof(s->buf);
@@ -102,10 +89,13 @@ stream_accept_cb(void *arg)
 		}
 	} break;
 	case NNG_ECLOSED:
-		break;
+		// Do nothing ?
+		return;
 	default:
 		break;
 	}
+
+	// Restart accept
 	nng_stream_listener_accept(l->l, l->aio);
 }
 
@@ -122,6 +112,7 @@ server(const char *url)
 		fatal("nng_stream_listener_alloc", rv);
 	}
 
+	/* Handle accepts in aio callback */
 	rv = nng_aio_alloc(&l.aio, stream_accept_cb, &l);
 	if (rv != 0) {
 		fatal("nng_aio_alloc", rv);
